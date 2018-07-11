@@ -88,6 +88,12 @@ Module.register("MMM-DCMetroTrainTimes", {
             this.errorMessage = 'Error: Too Many REST Failures';
             this.updateDom();
         }
+        if (notification === "DCMETRO_RESOLVED_ERRORS")
+        { // Timeout on errors has expired
+            this.errorMessage = null;
+            this.dataLoaded = false;
+            this.updateDom();
+        }
 	},
     // gets a fulltext name based on a color code
     getLineCodeName: function(theColorCode) {

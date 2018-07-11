@@ -25,6 +25,7 @@ module.exports = NodeHelper.create({
 	},
 	// subclass socketNotificationReceived, received notification from module
 	socketNotificationReceived: function(notification, theConfig) {
+        this.theConfig = theConfig;
 		if (notification === "REGISTER_CONFIG") {
         // create self reference for interval calls
 			var self = this;
@@ -53,10 +54,18 @@ module.exports = NodeHelper.create({
     // increment error count, if passed limit send notice to module
     processError: function() {
         this.errorCount += 1;
+        var self = this;
         if (this.errorCount >= errorFailLimit)
         {
             this.sendSocketNotification('DCMETRO_TOO_MANY_ERRORS', {} );
             this.stopUpdates = true;
+
+            // Create a timer to clear the error so we can restart processing
+            setTimeout(function() {
+                self.errorCount = 0;
+                self.stopUpdates = false;
+                self.sendSocketNotification('DCMETRO_RESOLVED_ERRORS', {});
+            }, 5 * 60 * 1000);
         }
     },
 	// --- STATION INFORMATION STUFF ---
