@@ -9,6 +9,19 @@
  * Module MMM-DCMetroTrainTimes By Adam Moses http://adammoses.com
  */
 // main module setup stuff
+/*global Module Log */
+
+const colorValues = {
+    BL: "DeepSkyBlue",
+    GR: "Green",
+    OR: "Orange",
+    RD: "Red",
+    SV: "Snow",
+    YL: "Yellow"
+};
+
+
+
 Module.register("MMM-DCMetroTrainTimes", {
     // setup the default config options
     defaults: {
@@ -29,7 +42,7 @@ Module.register("MMM-DCMetroTrainTimes", {
         colorizeLines: false, // default to no color
         incidentCodesOnly: false, // default to full text incident line listing
         hideTrainTimesLessThan: 0, // default to show all train times
-        showDestinationFullName: true, // default to show full train destination names
+        showDestinationFullName: true, // show full train destination names
     },
     // the start function
     start: function() {
@@ -120,13 +133,6 @@ Module.register("MMM-DCMetroTrainTimes", {
     },
     // gets an HTML color code based on a station color name or code
     getLineCodeColor: function(theColorCode) {
-        var colorValues = { BL: "DeepSkyBlue",
-            GR: "Green",
-            OR: "Orange",
-            RD: "Red",
-            SV: "Snow",
-            YL: "Yellow"
-        };
         return colorValues[theColorCode];
     },
     // the get dom handler
@@ -144,17 +150,16 @@ Module.register("MMM-DCMetroTrainTimes", {
 
     getDomForErrors: function() {
         // if error has occured indicate so and return
-        if (this.errorMessage !== null)
-        {
-            var wrapper = document.createElement("div");
+        var wrapper;
+        if (this.errorMessage !== null) {
+            wrapper = document.createElement("div");
             wrapper.className = "small";
             wrapper.innerHTML = this.errorMessage;
             return wrapper;
         }
         // if no data has been loaded yet indicate so and return
-        if (!this.dataLoaded)
-        {
-            var wrapper = document.createElement("div");
+        if (!this.dataLoaded) {
+            wrapper = document.createElement("div");
             wrapper.className = "small";
             wrapper.innerHTML = "Waiting For Update...";
             return wrapper;
@@ -167,10 +172,12 @@ Module.register("MMM-DCMetroTrainTimes", {
 
         if (!this.config.showIncidents) return;
         if (this.dataIncidentLinesList === null) return;
+        var lineIndex, lineCode;
 
         // create the header row titled "incidents"
         var headRow = document.createElement("tr");
         var headElement = document.createElement("td");
+        var iRow, iElement;
         headElement.className = "small";
         headElement.colSpan = "3";
         headElement.innerHTML = "Incidents";
@@ -178,8 +185,8 @@ Module.register("MMM-DCMetroTrainTimes", {
         wrapper.appendChild(headRow);
         // if there are lines with incidents on them list them
         if (this.dataIncidentLinesList.length > 0) {
-            var iRow = document.createElement("tr");
-            var iElement = document.createElement("td");
+            iRow = document.createElement("tr");
+            iElement = document.createElement("td");
             var incidentCount = this.dataIncidentLinesList.length;
             iElement.width = this.config.limitWidth;
             iElement.className = "xsmall";
@@ -188,8 +195,8 @@ Module.register("MMM-DCMetroTrainTimes", {
             if (this.config.incidentCodesOnly) {
                 iElement.align = "center";
                 incidentHTML = "";
-                for (var lineIndex = 0; lineIndex < incidentCount; lineIndex++){
-                    var lineCode = this.dataIncidentLinesList[lineIndex];
+                for (lineIndex = 0; lineIndex < incidentCount; lineIndex++){
+                    lineCode = this.dataIncidentLinesList[lineIndex];
                     if (this.config.colorizeLines) {
                         incidentHTML += "<div style='display:inline;color:" +
                         this.getLineCodeColor(lineCode) + "'>";
@@ -197,40 +204,45 @@ Module.register("MMM-DCMetroTrainTimes", {
                         incidentHTML += "<div style='display:inline;'>";
                     }
                     incidentHTML += lineCode + "</div>";
-                    if (lineIndex < incidentCount - 1)
+                    if (lineIndex < incidentCount - 1) {
                         incidentHTML += "&nbsp;&nbsp;";
+                    }
                 }
                 iElement.innerHTML = incidentHTML;
             } else {
-                // create a string and add each incident line's color to the string
+                // create a string and add each incident line's color to the
+                // string
                 iElement.align = "left";
                 incidentHTML = "";
-                if (this.dataIncidentLinesList.length === 1)
+                if (this.dataIncidentLinesList.length === 1) {
                     incidentHTML += "Incident Reported On ";
-                else
+                } else {
                     incidentHTML += "Incidents Reported On ";
-                for (var lineIndex = 0; lineIndex < incidentCount; lineIndex++){
-                    var lineCode = this.dataIncidentLinesList[lineIndex];
+                }
+                for (lineIndex = 0; lineIndex < incidentCount; lineIndex++){
+                    lineCode = this.dataIncidentLinesList[lineIndex];
                     if ((lineIndex === incidentCount - 1)
-                        && (this.dataIncidentLinesList.length > 1))
+                        && (this.dataIncidentLinesList.length > 1)) {
                         incidentHTML += "and ";
-                    if (this.config.colorizeLines)
+                    }
+                    if (this.config.colorizeLines) {
                         incidentHTML += "<div style='display:inline;color:"
                         + this.getLineCodeColor(lineCode)
                         + "'>";
-                    else
+                    } else {
                         incidentHTML += "<div style='display:inline;'>";
+                    }
                     incidentHTML += this.getLineCodeName(lineCode) + "</div>";
                     if ((lineIndex !== incidentCount - 1)
-                        && (incidentCount > 2))
-                        incidentHTML += ",";
+                        && (incidentCount > 2)) {incidentHTML += ",";}
                     incidentHTML += " ";
                 }
                 // add the right post-fix based on count
-                if (this.dataIncidentLinesList.length === 1)
+                if (this.dataIncidentLinesList.length === 1) {
                     incidentHTML += "Line";
-                else
+                } else {
                     incidentHTML += "Lines";
+                }
                 iElement.innerHTML += incidentHTML;
             }
 
@@ -238,8 +250,8 @@ Module.register("MMM-DCMetroTrainTimes", {
             wrapper.appendChild(iRow);
         } else {
             // if no lines with incidents then say so
-            var iRow = document.createElement("tr");
-            var iElement = document.createElement("td");
+            iRow = document.createElement("tr");
+            iElement = document.createElement("td");
             iElement.align = "left";
             iElement.colSpan = "3";
             iElement.className = "xsmall";
@@ -256,7 +268,7 @@ Module.register("MMM-DCMetroTrainTimes", {
         // iterate through each station in config station list
         for (var i = 0; i < this.config.stationsToShowList.length; i++) {
             this.addDomForTrainStation(wrapper,
-                    this.config.stationsToShowList[i]);
+                this.config.stationsToShowList[i]);
         }
     },
 
@@ -265,86 +277,65 @@ Module.register("MMM-DCMetroTrainTimes", {
         if (cStation === undefined) return;
 
         // create a header row of the station name
+        var trainRow;
         var headRow = document.createElement("tr");
-        var headElement = document.createElement("td");
-        headElement.align = "right";
-        headElement.colSpan = "3";
-        headElement.className = "small";
-        headElement.innerHTML = cStation.StationName;
-        headRow.appendChild(headElement);
+        headRow.innerHTML = "<td align='right' colspan='3' class='small'>" +
+            cStation.StationName + "</td>";
         wrapper.appendChild(headRow);
 
         if (cStation.TrainList.length == 0) {
-            var trainRow = document.createElement("tr");
+            trainRow = document.createElement("tr");
             trainRow.className = "xsmall";
             trainRow.align = "left";
-            var lineElement = document.createElement("td");
-            lineElement.innerHTML = "--";
-            var destElement = document.createElement("td");
-            destElement.align = "left";
-            destElement.innerHTML = "No Trains";
-            var minElement = document.createElement("td");
-            minElement.align = "right";
-            minElement.innerHTML = "";
-            trainRow.appendChild(lineElement);
-            trainRow.appendChild(destElement);
-            trainRow.appendChild(minElement);
+            trainRow.innerHTML = "<td>--</td>" +
+                "<td align='left'>No Trains</td>" +
+                "<td align='right'></td>";
             wrapper.appendChild(trainRow);
             return;
         }
 
-        // cap the number of train times to show if config-ed to do so
-        var countTrainTimesToShow = cStation.TrainList.length;
-        if ((this.config.maxTrainTimesPerStation !== 0)
-            && (countTrainTimesToShow > this.config.maxTrainTimesPerStation))
-            countTrainTimesToShow = this.config.maxTrainTimesPerStation;
-        // iterate through the train times list
-        for (var cTrainIndex = 0; cTrainIndex < countTrainTimesToShow; cTrainIndex++)
-        {
-            // each row should be the train line color, it's destination, and arrival time
-            var cTrain = cStation.TrainList[cTrainIndex];
-            var trainRow = document.createElement("tr");
+        var trains = cStation.TrainList;
+        var maxTrains = this.config.maxTrainTimesPerStation;
+        if (maxTrains !== 0 && maxTrains < trains.length) {
+            trains = trains.slice(0, maxTrains);
+        }
+
+        trains.forEach((cTrain) => {
+            trainRow = document.createElement("tr");
             trainRow.className = "xsmall";
             trainRow.align = "left";
-            var lineElement = document.createElement("td");
-            if (this.config.colorizeLines)
-                lineElement.style = "color:" + this.getLineCodeColor(cTrain.Line);
-            lineElement.innerHTML = cTrain.Line;
-            var destElement = document.createElement("td");
-            destElement.align = "left";
-            destElement.innerHTML = cTrain.Destination;
-            var minElement = document.createElement("td");
-            minElement.align = "right";
-            minElement.innerHTML = cTrain.Min;
-            trainRow.appendChild(lineElement);
-            trainRow.appendChild(destElement);
-            trainRow.appendChild(minElement);
+            trainRow.innerHTML = "<td" +
+                (this.config.colorizeLines ?
+                    " style='color:" + this.getLineCodeColor(cTrain.Line) + "'"
+                    : "") +
+                ">" + cTrain.Line + "</td>" +
+                "<td align='left'>" + cTrain.Destination + "</td>" +
+                "<td align='right'>" + cTrain.Min + "</td>";
             wrapper.appendChild(trainRow);
-        }
+        });
     },
 
     addDomForBuses: function(wrapper) {
         var stations = Object.keys(this.dataBusList);
         if (stations.length == 0) { return; }
 
-        for (var i = 0; i < stations.length; i++) {
+        stations.forEach((station) => {
             var row = document.createElement("tr");
             row.innerHTML = "<td colspan='3' class='small' align='right'>" +
-                    stations[i] + "</td>";
+                    station + "</td>";
             wrapper.appendChild(row);
 
-            var buses = this.dataBusList[stations[i]];
-            for (var j = 0; j < buses.length; j++) {
+            this.dataBusList[station].forEach((bus) => {
                 row = document.createElement("tr");
                 row.innerHTML = "<td class='xsmall' align='left'>" +
-                        buses[j].routeID + "</td>" +
+                        bus.routeID + "</td>" +
                         "<td class='xsmall' align='left'>" +
-                        buses[j].directionText + "</td>" +
+                        bus.directionText + "</td>" +
                         "<td class='xsmall' align='right'>" +
-                        buses[j].minutes + "</td>";
+                        bus.minutes + "</td>";
                 wrapper.appendChild(row);
-            }
-        }
+            });
+        });
     },
 
 });
