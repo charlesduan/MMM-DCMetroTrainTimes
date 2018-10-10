@@ -275,6 +275,7 @@ Module.register("MMM-DCMetroTrainTimes", {
     addDomForTrainStation: function(wrapper, stationCode) {
         var cStation = this.dataStationTrainTimesList[stationCode];
         if (cStation === undefined) return;
+        var trains = cStation.TrainList;
 
         // create a header row of the station name
         var trainRow;
@@ -283,18 +284,10 @@ Module.register("MMM-DCMetroTrainTimes", {
             cStation.StationName + "</td>";
         wrapper.appendChild(headRow);
 
-        if (cStation.TrainList.length == 0) {
-            trainRow = document.createElement("tr");
-            trainRow.className = "xsmall";
-            trainRow.align = "left";
-            trainRow.innerHTML = "<td>--</td>" +
-                "<td align='left'>No Trains</td>" +
-                "<td align='right'></td>";
-            wrapper.appendChild(trainRow);
-            return;
+        if (trains.length == 0) {
+            trains = [ [ "--", "No Trains", "" ] ];
         }
 
-        var trains = cStation.TrainList;
         var maxTrains = this.config.maxTrainTimesPerStation;
         if (maxTrains !== 0 && maxTrains < trains.length) {
             trains = trains.slice(0, maxTrains);
@@ -325,7 +318,12 @@ Module.register("MMM-DCMetroTrainTimes", {
                     station + "</td>";
             wrapper.appendChild(row);
 
-            this.dataBusList[station].forEach((bus) => {
+            var buses = this.dataBusList[station];
+            var maxTrains = this.config.maxTrainTimesPerStation;
+            if (maxTrains !== 0 && maxTrains < buses.length) {
+                buses = buses.slice(0, maxTrains);
+            }
+            buses.forEach((bus) => {
                 row = document.createElement("tr");
                 row.innerHTML = "<td class='xsmall' align='left'>" +
                         bus.routeID + "</td>" +
