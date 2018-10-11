@@ -32,6 +32,7 @@ module.exports = NodeHelper.create({
             var self = this;
             // load in the station information list
             this.loadStationInformationList(theConfig.path);
+            this.loadAggregateDestinations(theConfig.aggregateDestinations);
 
             // if config-ed to show incidients, start that up
             if (theConfig.showIncidents) {
@@ -67,6 +68,15 @@ module.exports = NodeHelper.create({
         }).on("error", (e) => { self.processError(e); });
     },
 
+    loadAggregateDestinations: function(list) {
+        this.destinationNameMap = new Map();
+        for (let group of list) {
+            for (let item of group) {
+                this.destinationNameMap.set(item, group[0]);
+            }
+        }
+    },
+
     // Aggregate an array of arrival time data
     // Parameters:
     //   list:        List of arrival objects
@@ -76,14 +86,16 @@ module.exports = NodeHelper.create({
     aggregateArrivals: function(list, line, destination, time) {
         var seen = new Map();
         for (let arrival of list) {
-            let data = seen.get(arrival[destination]);
+            let dest = this.destinationNameMap.get(arrival[destination]) ||
+                arrival[destination];
+            let data = seen.get(dest);
             if (data === undefined) {
-                seen.set(arrival[destination], {
+                seen.set(dest, {
                     times: [ arrival[time] ],
                     lines: [ arrival[line] ],
                 });
             } else {
-                data.times.push(arrival[time])
+                data.times.push(arrival[time]);
                 if (!data.lines.includes(arrival[line])) {
                     data.lines.push(arrival[line]);
                 }

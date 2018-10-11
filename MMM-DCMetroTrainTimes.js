@@ -43,6 +43,7 @@ Module.register("MMM-DCMetroTrainTimes", {
         incidentCodesOnly: false, // default to full text incident line listing
         hideTrainTimesLessThan: 0, // default to show all train times
         showDestinationFullName: true, // show full train destination names
+        aggregateDestinations: [ ] // Aggregation of destinations
     },
     // the start function
     start: function() {
