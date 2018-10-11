@@ -67,6 +67,39 @@ module.exports = NodeHelper.create({
         }).on("error", (e) => { self.processError(e); });
     },
 
+    // Aggregate an array of arrival time data
+    // Parameters:
+    //   list:        List of arrival objects
+    //   line:        Object key for line name
+    //   destination: Object key for destination description
+    //   time:        Object key for time data
+    aggregateArrivals: function(list, line, destination, time) {
+        var seen = new Map();
+        for (let arrival of list) {
+            let data = seen.get(arrival[destination]);
+            if (data === undefined) {
+                seen.set(arrival[destination], {
+                    times: [ arrival[time] ],
+                    lines: [ arrival[line] ],
+                });
+            } else {
+                data.times.push(arrival[time])
+                if (!data.lines.includes(arrival[line])) {
+                    data.lines.push(arrival[line]);
+                }
+            }
+        }
+        var res = [];
+        for (let [dest, data] of seen) {
+            res.push({
+                [line]: data.lines.join("/"),
+                [destination]: dest,
+                [time]: data.times.join(", "),
+            });
+        }
+        return res;
+    },
+
     // increment error count, if passed limit send notice to module
     processError: function(e) {
         this.errorCount += 1;
@@ -118,7 +151,8 @@ module.exports = NodeHelper.create({
         // check for each color code in the string, if found then
         // add code to the complete code string
         cAllCodes.forEach((cCode) => {
-            if (cLinesAffected.includes(cCode) && !cReturnLines.includes(cCode)) {
+            if (cLinesAffected.includes(cCode) &&
+                !cReturnLines.includes(cCode)) {
                 cReturnLines.push(cCode);
             }
         });
@@ -173,7 +207,7 @@ module.exports = NodeHelper.create({
     },
     // checks that train time string is not less than the configured time
     // to show it
-    isNotLessThanConfigThreshold: function(theConfig, theMin) {
+    meetsConfigThreshold: function(theConfig, theMin) {
         if (theConfig.hideTrainTimesLessThan === 0) {return true;}
         var cMin = theMin;
         if ((cMin === "BRD") || (cMin === "ARR")) {cMin = 0;}
@@ -187,17 +221,12 @@ module.exports = NodeHelper.create({
     // contains the station name and the list of train times
     getEmptyStationTrainTimesList: function(theConfig) {
         var returnList = {};
-        var show = theConfig.stationsToShowList;
-        for (var cIndex = 0; cIndex < show.length; cIndex++) {
-            var stationCode = show[cIndex];
-            var stationName = this.getStationName(stationCode);
-            if (returnList[stationCode] === undefined) {
-                var initStationPart = { StationName: stationName,
-                    StationCode: stationCode,
-                    TrainList: []
-                };
-                returnList[stationCode] = initStationPart;
-            }
+        for (var stationCode of theConfig.stationsToShowList) {
+            returnList[stationCode] = {
+                StationName: this.getStationName(stationCode),
+                StationCode: stationCode,
+                TrainList: []
+            };
         }
         return returnList;
     },
@@ -206,50 +235,37 @@ module.exports = NodeHelper.create({
         // build an empty list in case some stations have no trains times
         var stationTrainList = this.getEmptyStationTrainTimesList(theConfig);
         // iterate through the train times list
-        for (var cIndex = 0; cIndex < theTrains.length; cIndex++) {
-            var train = theTrains[cIndex];
+        for (var train of theTrains) {
             // make sure there is a destination code
-            if (train.DestinationCode !== null) {
-                // get all the parts of the train time
-                var tLocationCode     = train.LocationCode;
-                //var tLocationName     = train.LocationName;
-                var tDestinationName  = train.DestinationName;
-                var tDestinationCode  = train.DestinationCode;
-                var tLine             = train.Line;
-                var tMin              = train.Min;
-                var trainListPart = stationTrainList[tLocationCode].TrainList;
-                var tDestination;
+            if (train.DestinationCode === null) continue;
+            if (!this.doesNotContainExcludedDestination(theConfig,
+                train.LocationCode, train.DestinationCode)) continue;
+            if (!this.meetsConfigThreshold(theConfig, train.Min)) continue;
+            if (train.DestinationCode === "") continue;
+            if (train.DestinationName === "Train") continue;
+            if (train.Line === "--") continue;
+            if (train.Min === "") continue;
 
-                // if value is set in the config for showDestinationFullName,
-                // use that value
-                if (theConfig.showDestinationFullName == "true") {
-                    tDestination = this.getStationName(tDestinationCode);
-                } else {
-                    tDestination = train.Destination;
-                }
-
-                // build the train part
-                var trainPart = { Destination: tDestination,
-                    DestinationName: tDestinationName,
-                    DestinationCode: tDestinationCode,
-                    Line: tLine,
-                    Min: tMin
-                };
-                // if destination code isn't on the list of exclusions and
-                // it is not missing any of the required fields, then add
-                // it to the list
-                if (this.doesNotContainExcludedDestination(theConfig,
-                    tLocationCode, tDestinationCode)
-                    && this.isNotLessThanConfigThreshold(theConfig, tMin)
-                    && (tDestinationCode !== "")
-                    && (tDestinationName !== "Train")
-                    && (tLine !== "--")
-                    && (tMin !== "") ) {
-                    trainListPart[trainListPart.length] = trainPart;
-                }
-                // set the main station train list object to the train list part
-                stationTrainList[tLocationCode].TrainList = trainListPart;
+            // if value is set in the config for showDestinationFullName,
+            // use that value
+            var tDestination;
+            if (theConfig.showDestinationFullName == "true") {
+                tDestination = this.getStationName(train.DestinationCode);
+            } else {
+                tDestination = train.Destination;
             }
+
+            stationTrainList[train.LocationCode].TrainList.push({
+                Destination: tDestination,
+                Line: train.Line,
+                Min: train.Min
+            });
+        }
+        for (let trainLC of Object.keys(stationTrainList)) {
+            stationTrainList[trainLC].TrainList = this.aggregateArrivals(
+                stationTrainList[trainLC].TrainList,
+                "Line", "Destination", "Min"
+            );
         }
         // return payload is the module id and the station train list
         var returnPayload = {
@@ -292,13 +308,16 @@ module.exports = NodeHelper.create({
 
     parseBusTimes: function(theConfig, busData) {
 
-        var ret = busData.Predictions.map((bus) => {
-            return {
-                minutes: bus.Minutes,
-                routeID: bus.RouteID,
-                directionText: bus.DirectionText
-            };
-        });
+        var ret = this.aggregateArrivals(
+            busData.Predictions.map((bus) => {
+                return {
+                    minutes: bus.Minutes,
+                    routeID: bus.RouteID,
+                    directionText: bus.DirectionText
+                };
+            }),
+            "routeID", "directionText", "minutes"
+        );
         this.sendSocketNotification("DCMETRO_BUSTIMES_UPDATE", {
             identifier: theConfig.identifier,
             stopName: busData.StopName,

@@ -284,9 +284,7 @@ Module.register("MMM-DCMetroTrainTimes", {
             cStation.StationName + "</td>";
         wrapper.appendChild(headRow);
 
-        if (trains.length == 0) {
-            trains = [ [ "--", "No Trains", "" ] ];
-        }
+        if (trains.length == 0) trains = [ [ "--", "No Trains", "" ] ];
 
         var maxTrains = this.config.maxTrainTimesPerStation;
         if (maxTrains !== 0 && maxTrains < trains.length) {
