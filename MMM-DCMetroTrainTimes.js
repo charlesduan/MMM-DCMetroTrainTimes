@@ -179,7 +179,7 @@ Module.register("MMM-DCMetroTrainTimes", {
         var headRow = document.createElement("tr");
         var headElement = document.createElement("td");
         var iRow, iElement;
-        headElement.className = "small";
+        headElement.className = "small header";
         headElement.colSpan = "3";
         headElement.innerHTML = "Incidents";
         headRow.appendChild(headElement);
@@ -281,7 +281,7 @@ Module.register("MMM-DCMetroTrainTimes", {
         // create a header row of the station name
         var trainRow;
         var headRow = document.createElement("tr");
-        headRow.innerHTML = "<td align='right' colspan='3' class='small'>" +
+        headRow.innerHTML = "<td colspan='3' class='small header'>" +
             cStation.StationName + "</td>";
         wrapper.appendChild(headRow);
 
@@ -313,7 +313,7 @@ Module.register("MMM-DCMetroTrainTimes", {
 
         stations.forEach((station) => {
             var row = document.createElement("tr");
-            row.innerHTML = "<td colspan='3' class='small' align='right'>" +
+            row.innerHTML = "<td colspan='3' class='small header'>" +
                     station + "</td>";
             wrapper.appendChild(row);
 
@@ -335,6 +335,9 @@ Module.register("MMM-DCMetroTrainTimes", {
         });
     },
 
+    getStyles: function() {
+        return [ "metrotimes.css" ];
+    },
 });
 
 // ------------ END -------------
