@@ -309,16 +309,17 @@ module.exports = NodeHelper.create({
 
         var buses = theConfig.busStopsToShowList;
         for (var i = 0; i < buses.length; i++) {
+            let stopID = buses[i];
             this.callWmataApi(
-                "/NextBusService.svc/json/jPredictions?" + "StopID=" + buses[i],
+                "/NextBusService.svc/json/jPredictions?" + "StopID=" + stopID,
                 (data) => {
-                    self.parseBusTimes(theConfig, JSON.parse(data));
+                    self.parseBusTimes(theConfig, stopID, JSON.parse(data));
                 }
             );
         }
     },
 
-    parseBusTimes: function(theConfig, busData) {
+    parseBusTimes: function(theConfig, stopID, busData) {
 
         var ret = this.aggregateArrivals(
             busData.Predictions.map((bus) => {
@@ -333,6 +334,7 @@ module.exports = NodeHelper.create({
         this.sendSocketNotification("DCMETRO_BUSTIMES_UPDATE", {
             identifier: theConfig.identifier,
             stopName: busData.StopName,
+            stopID: stopID,
             busTimes: ret
         });
     }

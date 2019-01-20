@@ -103,7 +103,10 @@ Module.register("MMM-DCMetroTrainTimes", {
             break;
 
         case "DCMETRO_BUSTIMES_UPDATE":
-            this.dataBusList[payload.stopName] = payload.busTimes;
+            this.dataBusList[payload.stopID] = {
+                stopName: payload.stopName,
+                busTimes: payload.busTimes
+            }
             this.dataLoaded = true;
             if (this.firstUpdateDOMFlag) { this.updateDom(); }
             break;
@@ -308,16 +311,17 @@ Module.register("MMM-DCMetroTrainTimes", {
     },
 
     addDomForBuses: function(wrapper) {
-        var stations = Object.keys(this.dataBusList);
-        if (stations.length == 0) { return; }
+        var stationIDs = Object.keys(this.dataBusList);
+        if (stationIDs.length == 0) { return; }
 
-        stations.forEach((station) => {
+        stationIDs.forEach((stationID) => {
+            var payload = this.dataBusList[stationID];
             var row = document.createElement("tr");
             row.innerHTML = "<td colspan='3' class='small header'>" +
-                    station + "</td>";
+                    payload.stopName + "</td>";
             wrapper.appendChild(row);
 
-            var buses = this.dataBusList[station];
+            var buses = payload.busTimes;
             var maxTrains = this.config.maxTrainTimesPerStation;
             if (maxTrains !== 0 && maxTrains < buses.length) {
                 buses = buses.slice(0, maxTrains);
