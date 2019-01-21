@@ -58,6 +58,7 @@ Module.register("MMM-DCMetroTrainTimes", {
         this.dataIncidentLinesList = null;
         this.dataStationTrainTimesList = null;
         this.dataBusList = {};
+        this.aggregateBusList = {};
 
         // if set to show the header, set it
         if (this.config.showHeader) {
@@ -108,6 +109,7 @@ Module.register("MMM-DCMetroTrainTimes", {
                 busTimes: payload.busTimes
             }
             this.dataLoaded = true;
+            this.groupBuses();
             if (this.firstUpdateDOMFlag) { this.updateDom(); }
             break;
 
@@ -310,18 +312,37 @@ Module.register("MMM-DCMetroTrainTimes", {
         });
     },
 
-    addDomForBuses: function(wrapper) {
+    groupBuses: function() {
+        this.aggregateBusList = {};
+        var abl = this.aggregateBusList;
         var stationIDs = Object.keys(this.dataBusList);
         if (stationIDs.length == 0) { return; }
 
         stationIDs.forEach((stationID) => {
             var payload = this.dataBusList[stationID];
+            var buses = payload.busTimes;
+            var maxTrains = this.config.maxTrainTimesPerStation;
+            if (maxTrains !== 0 && maxTrains < buses.length) {
+                buses = buses.slice(0, maxTrains);
+            }
+            if (!abl.hasOwnProperty(payload.stopName)) {
+                abl[payload.stopName] = [];
+            }
+            abl[payload.stopName] = abl[payload.stopName].concat(buses);
+        });
+    },
+
+    addDomForBuses: function(wrapper) {
+        var stations = Object.keys(this.aggregateBusList);
+        if (stations.length == 0) { return; }
+
+        stations.forEach((station) => {
             var row = document.createElement("tr");
             row.innerHTML = "<td colspan='3' class='small header'>" +
-                    payload.stopName + "</td>";
+                    station + "</td>";
             wrapper.appendChild(row);
 
-            var buses = payload.busTimes;
+            var buses = this.aggregateBusList[station];
             var maxTrains = this.config.maxTrainTimesPerStation;
             if (maxTrains !== 0 && maxTrains < buses.length) {
                 buses = buses.slice(0, maxTrains);
