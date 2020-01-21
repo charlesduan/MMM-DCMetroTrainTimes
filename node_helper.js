@@ -25,10 +25,11 @@ module.exports = NodeHelper.create({
     },
     // subclass socketNotificationReceived, received notification from module
     socketNotificationReceived: function(notification, theConfig) {
-        this.theConfig = theConfig;
-        this.wmata_api_key = theConfig.wmata_api_key;
         if (notification === "REGISTER_CONFIG") {
-        // create self reference for interval calls
+            if (this.theConfig) { return; } // Don't register config twice
+            this.theConfig = theConfig;
+            this.wmata_api_key = theConfig.wmata_api_key;
+            // create self reference for interval calls
             var self = this;
             // load in the station information list
             this.loadStationInformationList(theConfig.path);
