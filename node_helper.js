@@ -190,7 +190,8 @@ module.exports = NodeHelper.create({
         var returnPayload = {
             identifier: theConfig.identifier,
             descriptionList: descriptionList,
-            linesList: linesList
+            linesList: linesList,
+            time: new Date().toISOString(),
         };
         // send back to module
         this.sendSocketNotification("DCMETRO_INCIDENT_UPDATE", returnPayload);
@@ -283,7 +284,8 @@ module.exports = NodeHelper.create({
         // return payload is the module id and the station train list
         var returnPayload = {
             identifier: theConfig.identifier,
-            stationTrainList: stationTrainList
+            data: stationTrainList,
+            time: new Date().toISOString(),
         };
         // send the payload back to the module
         this.sendSocketNotification(
@@ -322,12 +324,14 @@ module.exports = NodeHelper.create({
 
     parseBusTimes: function(theConfig, stopID, busData) {
 
+        var now = new Date();
+
         var ret = this.aggregateArrivals(
             busData.Predictions.map((bus) => {
                 return {
                     minutes: bus.Minutes,
                     routeID: bus.RouteID,
-                    directionText: bus.DirectionText
+                    directionText: bus.DirectionText,
                 };
             }),
             "routeID", "directionText", "minutes"
@@ -336,7 +340,8 @@ module.exports = NodeHelper.create({
             identifier: theConfig.identifier,
             stopName: busData.StopName,
             stopID: stopID,
-            busTimes: ret
+            busTimes: ret,
+            time: now.toISOString(),
         });
     }
 });

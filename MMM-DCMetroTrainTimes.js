@@ -51,14 +51,15 @@ Module.register("MMM-DCMetroTrainTimes", {
         Log.info("Starting module: " + this.name);
         this.config.identifier = this.identifier;
         this.config.path = this.data.path;
-        this.firstUpdateDOMFlag = false;
-        this.dataLoaded = false;
         this.errorMessage = null;
         this.dataIncidentDescriptionList = null;
         this.dataIncidentLinesList = null;
-        this.dataStationTrainTimesList = null;
+        this.trainData = null;
+
+        // Maps bus stop IDs to corresponding payload info from the node helper.
         this.dataBusList = {};
-        this.aggregateBusList = {};
+        this.aggregateBusList = null;
+        this.lastUpdated = null;
 
         // if set to show the header, set it
         if (this.config.showHeader) {
@@ -75,12 +76,7 @@ Module.register("MMM-DCMetroTrainTimes", {
 
         // schedule the first dom update
         var self = this;
-        setTimeout(function() { self.firstUpdateDOM(); }, 2000);
-    },
-    // delayed call for first DOM update
-    firstUpdateDOM: function() {
-        this.firstUpdateDOMFlag = true;
-        this.updateDom();
+        setInterval(function() { self.updateDom(); }, 2000);
     },
     // the socket handler
     socketNotificationReceived: function(notification, payload) {
@@ -93,34 +89,32 @@ Module.register("MMM-DCMetroTrainTimes", {
         case "DCMETRO_INCIDENT_UPDATE":
             this.dataIncidentDescriptionList = payload.descriptionList;
             this.dataIncidentLinesList = payload.linesList;
-            this.dataLoaded = true;
-            if (this.firstUpdateDOMFlag) this.updateDom();
+            this.lastUpdated = payload.time;
+            this.updateDom();
             break;
 
         case "DCMETRO_STATIONTRAINTIMES_UPDATE":
-            this.dataStationTrainTimesList = payload.stationTrainList;
-            this.dataLoaded = true;
-            if (this.firstUpdateDOMFlag) this.updateDom();
+            this.trainData = payload;
+            this.lastUpdated = payload.time;
+            this.updateDom();
             break;
 
         case "DCMETRO_BUSTIMES_UPDATE":
-            this.dataBusList[payload.stopID] = {
-                stopName: payload.stopName,
-                busTimes: payload.busTimes
-            }
-            this.dataLoaded = true;
+            this.dataBusList[payload.stopID] = payload;
+            this.lastUpdated = payload.time;
             this.groupBuses();
-            if (this.firstUpdateDOMFlag) { this.updateDom(); }
+            this.updateDom();
             break;
 
         case "DCMETRO_TOO_MANY_ERRORS":
             this.errorMessage = "Error: Too Many REST Failures";
+            this.lastUpdated = null;
             this.updateDom();
             break;
 
         case "DCMETRO_RESOLVED_ERRORS":
             this.errorMessage = null;
-            this.dataLoaded = false;
+            this.lastUpdated = null;
             this.updateDom();
             break;
         }
@@ -151,6 +145,7 @@ Module.register("MMM-DCMetroTrainTimes", {
         this.addDomForIncidents(wrapper);
         this.addDomForTrains(wrapper);
         this.addDomForBuses(wrapper);
+        this.addDomForUpdateTime(wrapper);
         return wrapper;
     },
 
@@ -164,7 +159,7 @@ Module.register("MMM-DCMetroTrainTimes", {
             return wrapper;
         }
         // if no data has been loaded yet indicate so and return
-        if (!this.dataLoaded) {
+        if (!this.lastUpdated) {
             wrapper = document.createElement("div");
             wrapper.className = "small";
             wrapper.innerHTML = "Waiting For Update...";
@@ -269,7 +264,7 @@ Module.register("MMM-DCMetroTrainTimes", {
 
     addDomForTrains: function(wrapper) {
         if (!this.config.showStationTrainTimes) return;
-        if (this.dataStationTrainTimesList === null) return;
+        if (this.trainData === null) return;
 
         // iterate through each station in config station list
         for (var i = 0; i < this.config.stationsToShowList.length; i++) {
@@ -279,7 +274,7 @@ Module.register("MMM-DCMetroTrainTimes", {
     },
 
     addDomForTrainStation: function(wrapper, stationCode) {
-        var cStation = this.dataStationTrainTimesList[stationCode];
+        var cStation = this.trainData.data[stationCode];
         if (cStation === undefined) return;
         var trains = cStation.TrainList;
 
@@ -307,43 +302,49 @@ Module.register("MMM-DCMetroTrainTimes", {
                     : "") +
                 ">" + cTrain.Line + "</td>" +
                 "<td align='left'>" + cTrain.Destination + "</td>" +
-                "<td align='right'>" + cTrain.Min + "</td>";
+                "<td align='right'>" +
+                this.diffTimes(cTrain.Min, this.trainData.time) +
+                "</td>";
             wrapper.appendChild(trainRow);
         });
     },
 
+    /*
+     * Aggregates buses by stop name, constructing this.aggregateBusList. The
+     * resulting instance variable maps bus stop names to a list of busTimes
+     * objects.
+     */
     groupBuses: function() {
-        this.aggregateBusList = {};
+        this.aggregateBusList = new Map();
         var abl = this.aggregateBusList;
         var stationIDs = Object.keys(this.dataBusList);
+        var maxTrains = this.config.maxTrainTimesPerStation;
         if (stationIDs.length == 0) { return; }
 
         stationIDs.forEach((stationID) => {
             var payload = this.dataBusList[stationID];
             var buses = payload.busTimes;
-            var maxTrains = this.config.maxTrainTimesPerStation;
             if (maxTrains !== 0 && maxTrains < buses.length) {
                 buses = buses.slice(0, maxTrains);
             }
-            if (!abl.hasOwnProperty(payload.stopName)) {
-                abl[payload.stopName] = [];
+            if (!abl.has(payload.stopName)) {
+                abl.set(payload.stopName, new Array());
             }
-            abl[payload.stopName] = abl[payload.stopName].concat(buses);
+            abl.get(payload.stopName).push(...buses);
         });
     },
 
     addDomForBuses: function(wrapper) {
-        var stations = Object.keys(this.aggregateBusList);
-        if (stations.length == 0) { return; }
 
-        stations.forEach((station) => {
+        var abl = this.aggregateBusList;
+        if (!abl || abl.size == 0) { return; }
+        var maxTrains = this.config.maxTrainTimesPerStation;
+
+        abl.forEach((buses, station, map) => {
             var row = document.createElement("tr");
             row.innerHTML = "<td colspan='3' class='small header'>" +
                     station + "</td>";
             wrapper.appendChild(row);
-
-            var buses = this.aggregateBusList[station];
-            var maxTrains = this.config.maxTrainTimesPerStation;
             if (maxTrains !== 0 && maxTrains < buses.length) {
                 buses = buses.slice(0, maxTrains);
             }
@@ -360,9 +361,76 @@ Module.register("MMM-DCMetroTrainTimes", {
         });
     },
 
+    addDomForUpdateTime: function(wrapper) {
+        // create the header row titled "incidents"
+        var row = document.createElement("tr");
+        var elt = document.createElement("td");
+        elt.className = "dimmed light xsmall";
+        elt.colSpan = "3";
+        elt.innerHTML = "Updated " + this.getDelayTime();
+        row.appendChild(elt);
+        wrapper.appendChild(row);
+        return wrapper;
+    },
+
     getStyles: function() {
         return [ "metrotimes.css" ];
     },
+
+
+    /*
+     * Returns the time since the last update.
+     */
+    getDelayTime: function() {
+        if (this.lastUpdated === null) { return "time null"; }
+        var then = Date.parse(this.lastUpdated);
+        if (isNaN(then)) { return "time unknown"; }
+        var delay = Date.now() - then;
+        if (delay < 2000) { return "just recently"; }
+        if (delay < 60000) { return Math.round(delay / 1000) + " seconds ago"; }
+        delay /= 60000;
+        if (delay < 1.5) { return "1 minute ago"; }
+        if (delay < 60) { return Math.round(delay) + " minutes ago"; }
+        delay /= 60;
+        if (delay < 1.5) { return "1 hour ago"; }
+        return null;
+
+        // Anything beyond this is too much
+        if (delay < 24) { return Math.round(delay) + " hours ago"; }
+        delay /= 24;
+        if (delay < 1.5) { return "1 day ago"; }
+        return Math.round(delay) + " days ago";
+    },
+
+    /*
+     * Takes a comma-separated list of arrival times and a time of last update,
+     * and revises the list per this.diffTime().
+     */
+    diffTimes: function(values, updateTime) {
+        if (values === undefined) return "";
+        return values.split(', ').map((val) => {
+            return this.diffTime(val, updateTime);
+        }).join(", ");
+    },
+
+    /*
+     * Takes an arrival time and a time of last update, and revises the arrival
+     * time to account for delay since the last update.
+     */
+    diffTime: function(value, updateTime) {
+        if (updateTime === null) { return value + "?"; }
+        var then = Date.parse(updateTime);
+        if (isNaN(then)) { return value + "?"; }
+
+        var delay = Math.floor((Date.now() - then) / 60000);
+        if (delay == 0) { return value; }
+
+        var val = parseInt(value);
+        if (isNaN(val)) { return value + "-" + delay };
+        if (val < delay) { return "past" };
+        return '' + (val - delay);
+    },
+
 });
 
 // ------------ END -------------
