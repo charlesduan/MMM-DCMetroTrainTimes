@@ -14,8 +14,11 @@ var NodeHelper = require("node_helper");
 const https = require("https");
 // const querystring = require("querystring");
 const fs = require("fs");
+const Log = require("logger");
 const errorFailLimit = 5;
 // the main module helper create
+
+
 module.exports = NodeHelper.create({
     // subclass start method, clears the initial config array
     start: function() {
@@ -33,7 +36,14 @@ module.exports = NodeHelper.create({
             var self = this;
             // load in the station information list
             this.loadStationInformationList(theConfig.path);
-            this.loadAggregateDestinations(theConfig.aggregateDestinations);
+            this.destinationNameMap = new Map();
+            this.loadAggregation(
+                this.destinationNameMap, theConfig.aggregateDestinations
+            );
+            this.busStopNameMap = new Map();
+            this.loadAggregation(
+                this.busStopNameMap, theConfig.aggregateBusStops
+            );
 
             // if config-ed to show incidients, start that up
             if (theConfig.showIncidents) {
@@ -69,13 +79,28 @@ module.exports = NodeHelper.create({
         }).on("error", (e) => { self.processError(e); });
     },
 
-    loadAggregateDestinations: function(list) {
-        this.destinationNameMap = new Map();
+    /*
+     * An aggregation is a list of sublists, in which the sublists name synonyms
+     * for a term. The first synonym is the canonical one.
+     *
+     * This method converts an aggregation into a map that converts names into
+     * their canonical forms.
+     */
+    loadAggregation: function(map, list) {
+        if (list === undefined) { return; }
         for (let group of list) {
             for (let item of group) {
-                this.destinationNameMap.set(item, group[0]);
+                map.set(item, group[0]);
             }
         }
+    },
+
+    /*
+     * Given a name and a map that canonicalizes names, returns the canonical
+     * name or the original name otherwise.
+     */
+    canonicalName: function(name, map) {
+        return (map.get(name) || name);
     },
 
     // Aggregate an array of arrival time data
@@ -87,8 +112,9 @@ module.exports = NodeHelper.create({
     aggregateArrivals: function(list, line, destination, time) {
         var seen = new Map();
         for (let arrival of list) {
-            let dest = this.destinationNameMap.get(arrival[destination]) ||
-                arrival[destination];
+            let dest = this.canonicalName(
+                arrival[destination], this.destinationNameMap
+            );
             let data = seen.get(dest);
             if (data === undefined) {
                 seen.set(dest, {
@@ -302,13 +328,15 @@ module.exports = NodeHelper.create({
         var self = this;
         // get query part of the REST API URL
         // build the full URL call
-        this.callWmataApi(
-            "/StationPrediction.svc/json/GetPrediction/" +
-                theConfig.stationsToShowList.join(","),
-            (data) => {
-                self.parseTrainTimes(theConfig, JSON.parse(data).Trains);
-            }
-        );
+        if (theConfig.length > 0) {
+            this.callWmataApi(
+                "/StationPrediction.svc/json/GetPrediction/" +
+                    theConfig.stationsToShowList.join(","),
+                (data) => {
+                    self.parseTrainTimes(theConfig, JSON.parse(data).Trains);
+                }
+            );
+        }
 
         var buses = theConfig.busStopsToShowList;
         for (var i = 0; i < buses.length; i++) {
@@ -326,6 +354,10 @@ module.exports = NodeHelper.create({
 
         var now = new Date();
 
+        if (busData.Predictions === undefined) {
+            return;
+        }
+
         var ret = this.aggregateArrivals(
             busData.Predictions.map((bus) => {
                 return {
@@ -338,7 +370,7 @@ module.exports = NodeHelper.create({
         );
         this.sendSocketNotification("DCMETRO_BUSTIMES_UPDATE", {
             identifier: theConfig.identifier,
-            stopName: busData.StopName,
+            stopName: this.canonicalName(busData.StopName, this.busStopNameMap),
             stopID: stopID,
             busTimes: ret,
             time: now.toISOString(),
